@@ -232,6 +232,13 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 			AutoUpgrade: nodePool.Spec.Management.AutoUpgrade,
 		}
 	}
+	if nodePool.Spec.UpgradeSettings != nil {
+		sdkNodePool.UpgradeSettings = &containerpb.NodePool_UpgradeSettings{
+			MaxSurge:       ptr.Deref(nodePool.Spec.UpgradeSettings.MaxSurge, 0),
+			MaxUnavailable: ptr.Deref(nodePool.Spec.UpgradeSettings.MaxUnavailable, 0),
+			Strategy:       ptr.To(convertToSdkNodePoolUpdateStrategy(nodePool.Spec.UpgradeSettings.Strategy)),
+		}
+	}
 	if nodePool.Spec.MaxPodsPerNode != nil {
 		sdkNodePool.MaxPodsConstraint = &containerpb.MaxPodsConstraint{
 			MaxPodsPerNode: *nodePool.Spec.MaxPodsPerNode,
@@ -293,6 +300,21 @@ func ConvertToSdkNodePool(nodePool infrav1exp.GCPManagedMachinePool, machinePool
 		sdkNodePool.Version = strings.Replace(machinePool.Spec.Template.Spec.Version, "v", "", 1)
 	}
 	return &sdkNodePool
+}
+
+// convertToSdkNodePoolUpdateStrategy converts the NodePoolUpgradeSettings.Strategy string to the SDK enum value.
+func convertToSdkNodePoolUpdateStrategy(strategy *string) containerpb.NodePoolUpdateStrategy {
+	if strategy == nil {
+		return containerpb.NodePoolUpdateStrategy_NODE_POOL_UPDATE_STRATEGY_UNSPECIFIED
+	}
+	switch *strategy {
+	case "SURGE":
+		return containerpb.NodePoolUpdateStrategy_SURGE
+	case "BLUE_GREEN":
+		return containerpb.NodePoolUpdateStrategy_BLUE_GREEN
+	default:
+		return containerpb.NodePoolUpdateStrategy_NODE_POOL_UPDATE_STRATEGY_UNSPECIFIED
+	}
 }
 
 // ConvertToSdkNodePools converts node pools to format that is used by GCP SDK.

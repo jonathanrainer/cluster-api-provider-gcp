@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-gcp/api/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-gcp/cloud"
 	"sigs.k8s.io/cluster-api-provider-gcp/exp/api/v1beta1"
@@ -203,6 +204,31 @@ var _ = Describe("GCPManagedMachinePool Scope", func() {
 			sdkNodePool := ConvertToSdkNodePool(*TestGCPMMP, *TestMP, false, TestClusterName)
 
 			Expect(sdkNodePool.GetConfig().GetMachineType()).To(Equal(machineType))
+		})
+
+		It("should convert UpgradeSettings to the SDK equivalent", func() {
+			maxSurge := int32(1)
+			maxUnavailable := int32(0)
+			strategy := "SURGE"
+			TestGCPMMP.Spec.UpgradeSettings = &v1beta1.NodePoolUpgradeSettings{
+				Strategy:       &strategy,
+				MaxSurge:       &maxSurge,
+				MaxUnavailable: &maxUnavailable,
+			}
+
+			sdkNodePool := ConvertToSdkNodePool(*TestGCPMMP, *TestMP, false, TestClusterName)
+
+			Expect(sdkNodePool.GetUpgradeSettings()).To(Equal(&containerpb.NodePool_UpgradeSettings{
+				MaxSurge:       maxSurge,
+				MaxUnavailable: maxUnavailable,
+				Strategy:       ptr.To(containerpb.NodePoolUpdateStrategy_SURGE),
+			}))
+		})
+
+		It("should leave UpgradeSettings unset on the SDK node pool when not specified", func() {
+			sdkNodePool := ConvertToSdkNodePool(*TestGCPMMP, *TestMP, false, TestClusterName)
+
+			Expect(sdkNodePool.GetUpgradeSettings()).To(BeNil())
 		})
 	})
 })
