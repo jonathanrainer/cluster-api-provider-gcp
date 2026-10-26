@@ -718,14 +718,8 @@ func (s *Service) checkDiffAndPrepareUpdateSize(existingNodePool *containerpb.No
 	needUpdate := false
 
 	// Only skip size update if autoscaling is explicitly configured and enabled.
-	// ConvertToSdkAutoscaling returns {Enabled: true} when passed nil, so without this
-	// guard any node pool with no Spec.Scaling set would have manual size updates silently
-	// suppressed.
-	if s.scope.GCPManagedMachinePool.Spec.Scaling != nil {
-		desiredAutoscaling := infrav1exp.ConvertToSdkAutoscaling(s.scope.GCPManagedMachinePool.Spec.Scaling)
-		if desiredAutoscaling.GetEnabled() {
-			return false, nil
-		}
+	if s.scope.AutoscalingEnabled() {
+		return false, nil
 	}
 
 	setNodePoolSizeRequest := containerpb.SetNodePoolSizeRequest{
@@ -737,7 +731,12 @@ func (s *Service) checkDiffAndPrepareUpdateSize(existingNodePool *containerpb.No
 		replicas /= int32(len(existingNodePool.GetLocations()))
 	}
 
-	if replicas != existingNodePool.GetInitialNodeCount() {
+	desiredTotal := int(replicas) * len(existingNodePool.GetLocations())
+	observed := len(s.scope.GCPManagedMachinePool.Spec.ProviderIDList)
+
+	// We can't just rely on initialNodeCount here because it's the last size that CAPG itself set, whereas if an
+	// autoscaler is in play that might have changed things out of band
+	if replicas != existingNodePool.GetInitialNodeCount() || observed != desiredTotal {
 		needUpdate = true
 		setNodePoolSizeRequest.NodeCount = replicas
 	}
